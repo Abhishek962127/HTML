@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>DEV QUEST — Interactive Portfolio</title>
+<meta name="description" content="An explorable pixel-art workshop that doubles as a developer portfolio.">
+
+<!-- ============================================================
+     DEV QUEST — a game-based interactive portfolio
+     Edit the CONFIG object near the top of the <script> at the
+     bottom of this file to make it yours. No build step needed —
+     just open index.html or push it to GitHub Pages.
+     ============================================================ -->
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+
+  :root{
+    --bg-void:      #150f1e;
+    --bg-panel:     #241a33;
+    --panel-border: #4a3866;
+    --accent-amber: #ffb84d;
+    --accent-teal:  #5fd6c4;
+    --accent-rose:  #ff8fa3;
+    --text-primary: #f5ecff;
+    --text-muted:   #a897c2;
+    --ground:       #3a2b52;
+    --ground-dark:  #32264a;
+    --wood:         #6b4a34;
+    --wood-dark:    #4f3626;
+    --wall:         #1e1530;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0; padding:0; min-height:100%;
+    background:var(--bg-void);
+    color:var(--text-primary);
+    font-family:'VT323', monospace;
+    font-size:20px;
+    overscroll-behavior:none;
+  }
+  h1,h2,h3,.pixel{ font-family:'Press Start 2P', monospace; }
+
+  /* faint scanline atmosphere over the whole page */
+  body::before{
+    content:"";
+    position:fixed; inset:0; pointer-events:none; z-index:999;
+    background:repeating-linear-gradient(
+      to bottom, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px,
+      transparent 1px, transparent 3px);
+    mix-blend-mode:overlay;
+  }
+
+  a{ color:var(--accent-teal); }
+
+  .wrap{
+    max-width:900px;
+    margin:0 auto;
+    padding:18px 16px 60px;
+  }
+
+  /* ---------- HUD ---------- */
+  header.hud{
+    display:flex; flex-wrap:wrap; gap:12px;
+    align-items:center; justify-content:space-between;
+    background:var(--bg-panel);
+    border:3px solid var(--panel-border);
+    box-shadow: 0 4px 0 #0c0813, inset 0 0 0 2px rgba(255,255,255,0.03);
+    border-radius:6px;
+    padding:12px 16px;
+    margin-bottom:14px;
+  }
+  .hud-title{
+    font-size:13px;
+    line-height:1.6;
+    color:var(--accent-amber);
+    letter-spacing:0.5px;
+    text-shadow:0 2px 0 #000;
+  }
+  .hud-title span{ color:var(--text-muted); font-size:10px; display:block; margin-top:6px; font-family:'VT323'; font-size:16px;}
+
+  .hud-right{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+
+  .dots{ display:flex; gap:6px; align-items:center; }
+  .dot{
+    width:14px; height:14px; border-radius:3px;
+    background:var(--ground-dark);
+    border:2px solid var(--panel-border);
+  }
+  .dot.filled{ background:var(--accent-teal); border-color:var(--accent-teal); box-shadow:0 0 6px var(--accent-teal); }
+
+  button.pixel-btn{
+    font-family:'Press Start 2P';
+    font-size:10px;
+    color:var(--text-primary);
+    background:var(--ground-dark);
+    border:2px solid var(--panel-border);
+    border-bottom-width:4px;
+    padding:8px 10px;
+    border-radius:4px;
+    cursor:pointer;
+    transition:transform .05s ease;
+  }
+  button.pixel-btn:hover{ color:var(--accent-amber); }
+  button.pixel-btn:active{ transform:translateY(2px); border-bottom-width:2px; }
+
+  /* ---------- Game area ---------- */
+  #game-wrap{
+    position:relative;
+    background:var(--bg-panel);
+    border:3px solid var(--panel-border);
+    border-radius:6px;
+    box-shadow: 0 4px 0 #0c0813;
+    padding:10px;
+  }
+  #game-canvas{
+    display:block;
+    width:100%;
+    height:auto;
+    image-rendering:pixelated;
+    image-rendering:crisp-edges;
+    background:var(--wall);
+    border-radius:3px;
+    cursor:pointer;
+  }
+
+  .hint-bar{
+    display:flex; justify-content:space-between; align-items:center;
+    flex-wrap:wrap; gap:8px;
+    margin-top:10px;
+    font-size:16px;
+    color:var(--text-muted);
+  }
+  .hint-bar b{ color:var(--accent-amber); }
+
+  /* start overlay */
+  #start-overlay{
+    position:absolute; inset:10px;
+    background:rgba(10,7,16,0.92);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; gap:16px; padding:20px;
+    border-radius:3px; z-index:20;
+  }
+  #start-overlay h2{ font-size:16px; color:var(--accent-amber); line-height:1.8; }
+  #start-overlay p{ color:var(--text-muted); font-size:18px; max-width:440px; }
+  #start-overlay .kbd{
+    display:inline-block; padding:2px 8px; margin:0 2px;
+    background:var(--ground-dark); border:2px solid var(--panel-border);
+    border-radius:4px; font-family:'Press Start 2P'; font-size:9px; color:var(--accent-teal);
+  }
+
+  /* interact prompt */
+  #prompt-bubble{
+    position:absolute;
+    transform:translate(-50%,-100%);
+    background:var(--accent-amber);
+    color:#241205;
+    font-family:'Press Start 2P';
+    font-size:9px;
+    padding:6px 8px;
+    border-radius:4px;
+    pointer-events:none;
+    display:none;
+    z-index:15;
+    white-space:nowrap;
+  }
+  #prompt-bubble::after{
+    content:"";
+    position:absolute; left:50%; top:100%; transform:translateX(-50%);
+    border:6px solid transparent; border-top-color:var(--accent-amber);
+  }
+
+  /* mobile d-pad */
+  #touch-controls{
+    display:none;
+    position:absolute; bottom:16px; left:0; right:0;
+    justify-content:space-between; align-items:flex-end;
+    padding:0 16px; z-index:16; pointer-events:none;
+  }
+  .dpad{ display:grid; grid-template-columns:repeat(3,44px); grid-template-rows:repeat(3,44px); gap:4px; pointer-events:auto; }
+  .dpad button{
+    background:rgba(36,26,51,0.85); border:2px solid var(--panel-border);
+    color:var(--text-primary); border-radius:6px; font-size:18px;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .dpad button:active{ background:var(--accent-teal); color:#0c0813; }
+  #up{grid-column:2;grid-row:1;} #left{grid-column:1;grid-row:2;}
+  #right{grid-column:3;grid-row:2;} #down{grid-column:2;grid-row:2;}
+  #interact-btn{
+    pointer-events:auto;
+    width:70px; height:70px; border-radius:50%;
+    background:var(--accent-amber); color:#241205;
+    border:3px solid #7a4d10; font-family:'Press Start 2P'; font-size:10px;
+    box-shadow:0 4px 0 #7a4d10;
+  }
+  #interact-btn:active{ transform:translateY(3px); box-shadow:none; }
+
+  @media (max-width:720px){
+    #touch-controls{ display:flex; }
+    body{ font-size:18px; }
+  }
+
+  /* ---------- Modal ---------- */
+  #modal-backdrop{
+    position:fixed; inset:0; background:rgba(8,5,13,0.78);
+    display:none; align-items:center; justify-content:center;
+    z-index:200; padding:16px;
+  }
+  #modal-backdrop.open{ display:flex; }
+  .modal{
+    background:var(--bg-panel);
+    border:3px solid var(--panel-border);
+    border-radius:8px;
+    box-shadow:0 8px 0 #0c0813;
+    max-width:560px; width:100%;
+    max-height:82vh; overflow-y:auto;
+    padding:0;
+    animation:pop .18s ease;
+  }
+  @keyframes pop{ from{ transform:scale(.92); opacity:0; } to{ transform:scale(1); opacity:1; } }
+  .modal-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 16px; border-bottom:2px solid var(--panel-border);
+    background:var(--ground-dark);
+    position:sticky; top:0;
+  }
+  .modal-head h2{ font-size:13px; color:var(--accent-amber); margin:0; }
+  .modal-close{
+    background:none; border:none; color:var(--text-muted);
+    font-family:'Press Start 2P'; font-size:14px; cursor:pointer; padding:4px 8px;
+  }
+  .modal-close:hover{ color:var(--accent-rose); }
+  .modal-body{ padding:18px 20px 22px; }
+  .modal-body p{ line-height:1.65; color:var(--text-primary); }
+  .tagline{ color:var(--accent-teal); font-size:18px; margin-top:-6px;}
+
+  .chip{
+    display:inline-block; font-size:13px; padding:2px 8px; margin:2px 4px 2px 0;
+    background:var(--ground-dark); border:1px solid var(--panel-border);
+    border-radius:10px; color:var(--accent-teal); font-family:'VT323';
+  }
+  .card{
+    border:2px solid var(--panel-border); border-radius:6px;
+    padding:12px 14px; margin-bottom:12px; background:rgba(255,255,255,0.02);
+  }
+  .card h3{ font-size:12px; color:var(--text-primary); margin:0 0 6px; }
+  .card p{ margin:6px 0 8px; }
+  .card a.play{
+    display:inline-block; margin-top:4px; font-size:14px;
+    color:#0c0813; background:var(--accent-teal);
+    padding:6px 10px; border-radius:4px; text-decoration:none;
+    font-family:'Press Start 2P'; font-size:9px;
+  }
+
+  .skillrow{ margin-bottom:14px; }
+  .skillrow .label{ display:flex; justify-content:space-between; font-size:16px; margin-bottom:4px; }
+  .bar{ height:14px; background:var(--ground-dark); border:2px solid var(--panel-border); border-radius:3px; overflow:hidden; }
+  .bar > i{ display:block; height:100%; background:linear-gradient(90deg,var(--accent-teal),var(--accent-amber)); }
+
+  .contact-links{ display:flex; flex-direction:column; gap:10px; margin-top:10px; }
+  .contact-links a{
+    display:flex; align-items:center; gap:10px;
+    background:var(--ground-dark); border:2px solid var(--panel-border);
+    padding:10px 12px; border-radius:6px; text-decoration:none;
+    color:var(--text-primary); font-size:18px;
+  }
+  .contact-links a:hover{ border-color:var(--accent-teal); }
+
+  /* ---------- Achievement banner ---------- */
+  #achieve{
+    position:fixed; top:16px; left:50%; transform:translateX(-50%) translateY(-140%);
+    background:var(--accent-amber); color:#241205; z-index:300;
+    padding:12px 18px; border-radius:6px; box-shadow:0 4px 0 #7a4d10;
+    font-family:'Press Start 2P'; font-size:11px; text-align:center;
+    transition:transform .4s cubic-bezier(.2,.9,.3,1.3);
+    max-width:90vw;
+  }
+  #achieve.show{ transform:translateX(-50%) translateY(0); }
+  #achieve span{ display:block; font-family:'VT323'; font-size:15px; margin-top:6px; }
+
+  .confetti{
+    position:fixed; top:-10px; width:8px; height:8px; z-index:290; pointer-events:none;
+    animation:fall linear forwards;
+  }
+  @keyframes fall{
+    to{ transform:translateY(105vh) rotate(400deg); opacity:0.2; }
+  }
+
+  /* ---------- Text fallback mode ---------- */
+  #text-mode{ display:none; }
+  #text-mode.show{ display:block; }
+  #text-mode section{
+    background:var(--bg-panel); border:3px solid var(--panel-border);
+    border-radius:6px; padding:18px 20px; margin-bottom:16px;
+  }
+  #text-mode h2{ font-size:13px; color:var(--accent-amber); margin-top:0; }
+
+  footer{
+    text-align:center; color:var(--text-muted); font-size:15px; margin-top:26px;
+  }
+  footer a{ color:var(--accent-teal); }
+
+  .sr-only{
+    position:absolute; width:1px; height:1px; overflow:hidden;
+    clip:rect(0,0,0,0); white-space:nowrap;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hud">
+    <div class="hud-title">
+      ◆ DEV QUEST — PORTFOLIO ◆
+      <span id="hud-sub">Walk around the workshop and interact with everything.</span>
+    </div>
+    <div class="hud-right">
+      <div class="dots" aria-label="Sections explored">
+        <div class="dot" data-key="about" title="About"></div>
+        <div class="dot" data-key="projects" title="Projects"></div>
+        <div class="dot" data-key="skills" title="Skills"></div>
+        <div class="dot" data-key="contact" title="Contact"></div>
+      </div>
+      <button class="pixel-btn" id="sound-toggle" aria-pressed="true">🔊 SOUND</button>
+      <button class="pixel-btn" id="text-toggle" aria-pressed="false">📄 TEXT MODE</button>
+    </div>
+  </header>
+
+  <!-- ================= GAME ================= -->
+  <div id="game-view">
+    <div id="game-wrap">
+      <canvas id="game-canvas" width="560" height="360" tabindex="0"
+              aria-label="Interactive pixel-art workshop. Use arrow keys or WASD to move, E to interact."></canvas>
+
+      <div id="prompt-bubble">PRESS E</div>
+
+      <div id="start-overlay">
+        <h2>◆ THE WORKSHOP ◆</h2>
+        <p>Explore the room. Walk up to the bookshelf, terminal, workbench and mailbox
+           to learn who I am, what I've built, what I know, and how to reach me.</p>
+        <p>
+          <span class="kbd">W A S D</span> / <span class="kbd">◀▲▼▶</span> move &nbsp;
+          <span class="kbd">E</span> interact
+        </p>
+        <button class="pixel-btn" id="start-btn" style="padding:12px 18px;font-size:11px;">▶ START</button>
+      </div>
+
+      <div id="touch-controls">
+        <div class="dpad">
+          <button id="up">▲</button><button id="left">◀</button>
+          <button id="right">▶</button><button id="down">▼</button>
+        </div>
+        <button id="interact-btn">E</button>
+      </div>
+    </div>
+
+    <div class="hint-bar">
+      <div>🕹 <b>WASD/Arrows</b> move · <b>E</b> interact · <b>Tap</b> a station also nudges you toward it</div>
+      <div id="visited-count">0 / 4 explored</div>
+    </div>
+  </div>
+
+  <!-- ================= TEXT FALLBACK ================= -->
+  <div id="text-mode"></div>
+
+  <footer>
+    Built as a self-contained, dependency-free HTML/CSS/JS game.
+    <span id="repo-note">Fork it, edit the CONFIG object, push to GitHub Pages.</span>
+  </footer>
+</div>
+
+<!-- ================= MODAL ================= -->
+<div id="modal-backdrop">
+  <div class="modal" role="dialog" aria-modal="true" id="modal">
+    <div class="modal-head">
+      <h2 id="modal-title">TITLE</h2>
+      <button class="modal-close" id="modal-close" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<div id="achieve"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* =========================================================
+   1. CONFIG — edit this block to turn it into YOUR portfolio
+   ========================================================= */
+const CONFIG = {
+  name: "Alex Rivera",
+  role: "Full-Stack Developer",
+  tagline: "I build playful, fast, slightly-too-detailed things for the web.",
+  about: "I'm a developer who likes projects with a strong point of view — " +
+         "tools that are useful, interfaces that are fun to use, and code " +
+         "that's easy to come back to six months later. Lately I've been deep " +
+         "in TypeScript, real-time systems, and small game engines like the one " +
+         "you're standing in right now.",
+  funFacts: [
+    "This entire room is drawn with <canvas> — no image files.",
+    "Every color in this UI comes from one 8-value palette.",
+    "You can finish the whole portfolio in under 30 seconds.",
+    "There's a reward for visiting all four stations 👀"
+  ],
+  projects: [
+    {
+      title: "Realtime Kanban",
+      desc: "A multiplayer task board with live cursors and offline sync, built on CRDTs.",
+      tags: ["TypeScript","WebSockets","CRDT"],
+      link: "https://github.com/"
+    },
+    {
+      title: "Pixel Weather",
+      desc: "A tiny weather app that renders forecasts as generative pixel-art scenes.",
+      tags: ["Canvas","API","Design"],
+      link: "https://github.com/"
+    },
+    {
+      title: "QueryLens",
+      desc: "A CLI that visualizes SQL query plans as readable, colored trees.",
+      tags: ["Rust","CLI","DevTools"],
+      link: "https://github.com/"
+    },
+    {
+      title: "This Portfolio",
+      desc: "The game you're playing right now. One HTML file, zero dependencies.",
+      tags: ["JS","Canvas","UX"],
+      link: "#"
+    }
+  ],
+  skills: [
+    { name: "JavaScript / TypeScript", level: 92 },
+    { name: "React / Frontend Systems", level: 88 },
+    { name: "Node.js / APIs", level: 84 },
+    { name: "Game-ish Canvas Work", level: 78 },
+    { name: "SQL & Data Modeling", level: 70 }
+  ],
+  contact: {
+    email: "you@example.com",
+    github: "https://github.com/yourname",
+    linkedin: "https://linkedin.com/in/yourname",
+    resumeUrl: "#"
+  }
+};
+
+/* =========================================================
+   2. MAP — 0 floor, 1 wall, 2..5 stations, 6 rug, 7 plant, 8 window
+   ========================================================= */
+const TILE = 40, COLS = 14, ROWS = 9;
+/* eslint-disable */
+const MAP = [
+ [1,1,1,1,1,1,8,8,1,1,1,1,1,1],
+ [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+ [1,0,2,0,7,0,0,0,0,0,3,0,0,1],
+ [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+ [1,0,0,0,0,6,6,6,0,0,0,0,0,1],
+ [1,0,0,0,0,6,6,6,0,0,0,0,0,1],
+ [1,0,4,0,0,0,0,0,0,0,5,0,0,1],
+ [1,0,0,0,0,0,0,0,0,0,0,0,0,1],
+ [1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+/* eslint-enable */
+
+const STATIONS = {
+  2: { key:"about",    label:"BOOKSHELF",  title:"◆ ABOUT ME ◆" },
+  3: { key:"projects", label:"TERMINAL",   title:"◆ PROJECTS ◆" },
+  4: { key:"skills",   label:"WORKBENCH",  title:"◆ SKILLS ◆" },
+  5: { key:"contact",  label:"MAILBOX",    title:"◆ CONTACT ◆" },
+};
+
+function solidTile(v){ return v===1 || v===2 || v===3 || v===4 || v===5 || v===7 || v===8 || v===9; }
+
+/* =========================================================
+   3. STATE
+   ========================================================= */
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+const promptBubble = document.getElementById('prompt-bubble');
+const gameWrap = document.getElementById('game-wrap');
+
+const player = { x: 6.5*TILE, y: 3.5*TILE, w:20, h:22, speed:150, facing:'down', moving:false };
+const keys = { up:false, down:false, left:false, right:false };
+let nearStationCode = null;
+let modalOpen = true; // blocked until "start" pressed
+let started = false;
+let visited = new Set();
+let allDoneCelebrated = false;
+let soundOn = true;
+let chestSpawned = false;
+let last = 0;
+
+/* =========================================================
+   4. SOUND (WebAudio, no assets)
+   ========================================================= */
+let actx;
+function beep(freq, dur, type, delay){
+  if(!soundOn) return;
+  try{
+    if(!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = actx.currentTime + (delay||0);
+    const osc = actx.createOscillator();
+    const gain = actx.createGain();
+    osc.type = type || 'square';
+    osc.frequency.setValueAtTime(freq, t0);
+    gain.gain.setValueAtTime(0.06, t0);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    osc.connect(gain).connect(actx.destination);
+    osc.start(t0); osc.stop(t0+dur);
+  }catch(e){ /* audio not available, ignore */ }
+}
+function playOpen(){ beep(660,0.09,'square'); }
+function playAchieve(){ [523,659,784,1046].forEach((f,i)=>beep(f,0.12,'triangle',i*0.09)); }
+
+/* =========================================================
+   5. DRAWING — everything is procedural, no image files
+   ========================================================= */
+function px(n){ return Math.round(n); }
+
+function drawFloor(x,y,c,r){
+  ctx.fillStyle = (c+r)%2===0 ? '#3a2b52' : '#382a4d';
+  ctx.fillRect(x,y,TILE,TILE);
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.strokeRect(x+0.5,y+0.5,TILE-1,TILE-1);
+}
+function drawWall(x,y){
+  ctx.fillStyle = '#1e1530';
+  ctx.fillRect(x,y,TILE,TILE);
+  ctx.fillStyle = 'rgba(255,255,255,0.04)';
+  for(let i=0;i<2;i++) ctx.fillRect(x, y+6+i*16, TILE, 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fillRect(x, y+TILE-4, TILE, 4);
+}
+function drawWindow(x,y,t){
+  drawWall(x,y);
+  const glow = 0.5 + 0.5*Math.sin(t/900);
+  ctx.fillStyle = `rgba(95,214,196,${0.25+glow*0.25})`;
+  ctx.fillRect(x+8,y+8,TILE-16,TILE-16);
+  ctx.strokeStyle = '#4a3866';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x+8,y+8,TILE-16,TILE-16);
+  ctx.beginPath(); ctx.moveTo(x+TILE/2,y+8); ctx.lineTo(x+TILE/2,y+TILE-8);
+  ctx.moveTo(x+8,y+TILE/2); ctx.lineTo(x+TILE-8,y+TILE/2); ctx.stroke();
+}
+function drawRug(x,y,c,r){
+  drawFloor(x,y,c,r);
+  ctx.fillStyle = 'rgba(255,184,77,0.18)';
+  ctx.fillRect(x+3,y+3,TILE-6,TILE-6);
+  ctx.strokeStyle = 'rgba(255,184,77,0.35)';
+  ctx.strokeRect(x+3,y+3,TILE-6,TILE-6);
+}
+function drawPlant(x,y,c,r,t){
+  drawFloor(x,y,c,r);
+  const wob = Math.sin(t/700)*2;
+  ctx.fillStyle = '#5a3d2b';
+  ctx.fillRect(x+13,y+26,14,10);
+  ctx.fillStyle = '#4f8f5b';
+  ctx.beginPath(); ctx.ellipse(x+20+wob,y+16,11,10,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#3f7a4a';
+  ctx.beginPath(); ctx.ellipse(x+13+wob,y+22,7,7,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x+27-wob,y+22,7,7,0,0,Math.PI*2); ctx.fill();
+}
+
+function drawBookshelf(x,y,c,r){
+  drawFloor(x,y,c,r);
+  ctx.fillStyle = '#6b4a34';
+  ctx.fillRect(x+4,y+2,TILE-8,TILE-6);
+  ctx.fillStyle = '#4f3626';
+  ctx.fillRect(x+4,y+18,TILE-8,2);
+  const cols = ['#ff8fa3','#5fd6c4','#ffb84d','#a897c2','#f5ecff'];
+  for(let i=0;i<5;i++){
+    ctx.fillStyle = cols[i];
+    ctx.fillRect(x+6+i*5, y+5, 3, 12);
+  }
+  for(let i=0;i<5;i++){
+    ctx.fillStyle = cols[(i+2)%cols.length];
+    ctx.fillRect(x+6+i*5, y+21, 3, 12);
+  }
+}
+function drawTerminal(x,y,c,r,t){
+  drawFloor(x,y,c,r);
+  ctx.fillStyle = '#4f3626';
+  ctx.fillRect(x+3,y+24,TILE-6,10);
+  ctx.fillStyle = '#241a33';
+  ctx.fillRect(x+7,y+4,TILE-14,20);
+  const glow = 0.55 + 0.45*Math.sin(t/500);
+  ctx.fillStyle = `rgba(95,214,196,${glow})`;
+  ctx.fillRect(x+10,y+7,TILE-20,14);
+  ctx.fillStyle = 'rgba(20,10,30,0.6)';
+  for(let i=0;i<3;i++) ctx.fillRect(x+11,y+9+i*4,10 - (i%2)*3,2);
+}
+function drawWorkbench(x,y,c,r){
+  drawFloor(x,y,c,r);
+  ctx.fillStyle = '#4f3626';
+  ctx.fillRect(x+2,y+22,TILE-4,12);
+  ctx.fillStyle = '#c65b4a';
+  ctx.fillRect(x+9,y+8,TILE-18,16);
+  ctx.fillStyle = '#f5ecff';
+  ctx.fillRect(x+TILE/2-6,y+13,12,3);
+  ctx.fillRect(x+TILE/2-1.5,y+9,3,12);
+}
+function drawMailbox(x,y,c,r,t){
+  drawFloor(x,y,c,r);
+  ctx.fillStyle = '#6b4a34';
+  ctx.fillRect(x+TILE/2-3,y+16,6,20);
+  ctx.fillStyle = '#a897c2';
+  ctx.beginPath();
+  ctx.ellipse(x+TILE/2,y+12,11,8,0,0,Math.PI*2); ctx.fill();
+  const up = Math.sin(t/650) > 0.3;
+  ctx.fillStyle = '#ff8fa3';
+  if(up){ ctx.fillRect(x+TILE/2+8,y+2,3,10); }
+  else { ctx.fillRect(x+TILE/2+8,y+9,10,3); }
+}
+function drawChest(x,y,c,r,t){
+  drawFloor(x,y,c,r);
+  const bob = Math.sin(t/400)*1.5;
+  ctx.fillStyle = '#6b4a34';
+  ctx.fillRect(x+7,y+16+bob,TILE-14,14);
+  ctx.fillStyle = '#4f3626';
+  ctx.fillRect(x+7,y+16+bob,TILE-14,4);
+  ctx.fillStyle = '#ffb84d';
+  ctx.fillRect(x+TILE/2-3,y+22+bob,6,4);
+  ctx.strokeStyle = 'rgba(255,184,77,0.6)';
+  ctx.strokeRect(x+7,y+16+bob,TILE-14,14);
+}
+
+function drawPlayer(t){
+  const x = player.x, y = player.y;
+  const bob = player.moving ? Math.sin(t/110)*1.5 : 0;
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.beginPath(); ctx.ellipse(x, y+13, 10, 4, 0,0,Math.PI*2); ctx.fill();
+
+  ctx.fillStyle = '#ffb84d';
+  ctx.fillRect(x-8, y-4+bob, 16, 14);
+  ctx.fillStyle = '#f5ecff';
+  ctx.fillRect(x-7, y-16+bob, 14, 13);
+  ctx.fillStyle = '#241a33';
+  let ex=-3, ey=-11;
+  if(player.facing==='left'){ ex=-5; ey=-11; }
+  if(player.facing==='right'){ ex=1; ey=-11; }
+  if(player.facing==='up'){ ex=-3; ey=-13; }
+  ctx.fillRect(x+ex, y+ey+bob, 2,2);
+  ctx.fillRect(x+ex+4, y+ey+bob, 2,2);
+}
+
+function tileDraw(v,x,y,c,r,t){
+  switch(v){
+    case 1: drawWall(x,y); return;
+    case 8: drawWindow(x,y,t); return;
+    case 6: drawRug(x,y,c,r); return;
+    case 7: drawPlant(x,y,c,r,t); return;
+    case 2: drawBookshelf(x,y,c,r); return;
+    case 3: drawTerminal(x,y,c,r,t); return;
+    case 4: drawWorkbench(x,y,c,r); return;
+    case 5: drawMailbox(x,y,c,r,t); return;
+    case 9: drawChest(x,y,c,r,t); return;
+    default: drawFloor(x,y,c,r); return;
+  }
+}
+
+function render(t){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      tileDraw(MAP[r][c], c*TILE, r*TILE, c, r, t);
+    }
+  }
+  drawPlayer(t);
+}
+
+/* =========================================================
+   6. UPDATE / COLLISION / LOOP
+   ========================================================= */
+function tileAtPixel(px,py){
+  const c = Math.floor(px/TILE), r = Math.floor(py/TILE);
+  if(r<0||r>=ROWS||c<0||c>=COLS) return 1;
+  return MAP[r][c];
+}
+function blocked(px,py){
+  const hw = player.w/2, hh = player.h/2;
+  const corners = [
+    [px-hw, py-hh],[px+hw, py-hh],[px-hw, py+hh],[px+hw, py+hh]
+  ];
+  return corners.some(([cx,cy]) => solidTile(tileAtPixel(cx,cy)));
+}
+
+function update(dt,t){
+  if(modalOpen){ player.moving=false; return; }
+  let dx=0, dy=0;
+  if(keys.up){ dy-=1; player.facing='up'; }
+  if(keys.down){ dy+=1; player.facing='down'; }
+  if(keys.left){ dx-=1; player.facing='left'; }
+  if(keys.right){ dx+=1; player.facing='right'; }
+  player.moving = (dx!==0||dy!==0);
+  if(player.moving){
+    const len = Math.hypot(dx,dy) || 1;
+    dx/=len; dy/=len;
+    const nx = player.x + dx*player.speed*dt;
+    const ny = player.y + dy*player.speed*dt;
+    if(!blocked(nx, player.y)) player.x = nx;
+    if(!blocked(player.x, ny)) player.y = ny;
+  }
+
+  // nearest station
+  nearStationCode = null;
+  let best = 42;
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const v = MAP[r][c];
+      if(STATIONS[v] || v===9){
+        const cx = c*TILE+TILE/2, cy = r*TILE+TILE/2;
+        const d = Math.hypot(player.x-cx, player.y-cy);
+        if(d < 50 && d < best){ best = d; nearStationCode = v; }
+      }
+    }
+  }
+  updatePromptUI();
+}
+
+function loop(ts){
+  if(!last) last = ts;
+  const dt = Math.min((ts-last)/1000, 0.05);
+  last = ts;
+  update(dt, ts);
+  render(ts);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* =========================================================
+   7. PROMPT BUBBLE POSITION
+   ========================================================= */
+function updatePromptUI(){
+  if(nearStationCode === null){ promptBubble.style.display='none'; return; }
+  let label = nearStationCode===9 ? 'CHEST' : STATIONS[nearStationCode].label;
+  promptBubble.textContent = 'PRESS E · ' + label;
+  // find its tile position
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      if(MAP[r][c]===nearStationCode){
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = rect.width/canvas.width, scaleY = rect.height/canvas.height;
+        const px = c*TILE+TILE/2, py = r*TILE;
+        promptBubble.style.left = (px*scaleX) + 'px';
+        promptBubble.style.top = (py*scaleY - 6) + 'px';
+        promptBubble.style.display = 'block';
+        return;
+      }
+    }
+  }
+}
+
+/* =========================================================
+   8. INTERACTION / MODAL CONTENT
+   ========================================================= */
+function interact(){
+  if(nearStationCode === null || modalOpen) return;
+  if(nearStationCode === 9){ openChest(); return; }
+  const st = STATIONS[nearStationCode];
+  openModal(st.title, buildContent(st.key));
+  playOpen();
+  if(!visited.has(st.key)){
+    visited.add(st.key);
+    const dot = document.querySelector(`.dot[data-key="${st.key}"]`);
+    if(dot) dot.classList.add('filled');
+    document.getElementById('visited-count').textContent = visited.size + ' / 4 explored';
+    maybeCelebrate();
+  }
+}
+
+function buildContent(key){
+  if(key === 'about'){
+    return `
+      <h2 class="pixel" style="font-size:16px;color:var(--text-primary);margin:0 0 4px;">${CONFIG.name}</h2>
+      <div class="tagline">${CONFIG.role}</div>
+      <p style="margin-top:14px;">${CONFIG.tagline}</p>
+      <p>${CONFIG.about}</p>
+      <div class="card" style="margin-top:14px;">
+        <h3>FUN FACTS</h3>
+        <ul style="margin:6px 0 0 18px;padding:0;">
+          ${CONFIG.funFacts.map(f=>`<li style="margin-bottom:6px;">${f}</li>`).join('')}
+        </ul>
+      </div>`;
+  }
+  if(key === 'projects'){
+    return CONFIG.projects.map(p => `
+      <div class="card">
+        <h3>${p.title}</h3>
+        <p>${p.desc}</p>
+        <div>${p.tags.map(t=>`<span class="chip">${t}</span>`).join('')}</div>
+        <a class="play" href="${p.link}" target="_blank" rel="noopener">VIEW ↗</a>
+      </div>`).join('');
+  }
+  if(key === 'skills'){
+    return CONFIG.skills.map(s => `
+      <div class="skillrow">
+        <div class="label"><span>${s.name}</span><span>${s.level}%</span></div>
+        <div class="bar"><i style="width:${s.level}%"></i></div>
+      </div>`).join('');
+  }
+  if(key === 'contact'){
+    const c = CONFIG.contact;
+    return `
+      <p>Say hi — I read everything.</p>
+      <div class="contact-links">
+        <a href="mailto:${c.email}">✉️ &nbsp; ${c.email}</a>
+        <a href="${c.github}" target="_blank" rel="noopener">🐙 &nbsp; GitHub</a>
+        <a href="${c.linkedin}" target="_blank" rel="noopener">💼 &nbsp; LinkedIn</a>
+        <a href="${c.resumeUrl}" target="_blank" rel="noopener">📄 &nbsp; Resume</a>
+      </div>`;
+  }
+  return '';
+}
+
+function openChest(){
+  openModal('◆ QUEST COMPLETE ◆', `
+    <p>You explored the whole workshop. Thanks for playing! 🎉</p>
+    <p>If any of this made you smile, the fastest way to reach me is the mailbox
+       station — or just email <b>${CONFIG.contact.email}</b> directly.</p>
+    <div class="contact-links">
+      <a href="${CONFIG.contact.resumeUrl}" target="_blank" rel="noopener">📄 &nbsp; Download resume</a>
+    </div>`);
+  playOpen();
+}
+
+/* =========================================================
+   9. MODAL open/close
+   ========================================================= */
+const backdrop = document.getElementById('modal-backdrop');
+const modalTitle = document.getElementById('modal-title');
+const modalBody = document.getElementById('modal-body');
+
+function openModal(title, html){
+  modalTitle.textContent = title;
+  modalBody.innerHTML = html;
+  backdrop.classList.add('open');
+  modalOpen = true;
+}
+function closeModal(){
+  backdrop.classList.remove('open');
+  if(started) modalOpen = false;
+  canvas.focus();
+}
+document.getElementById('modal-close').addEventListener('click', closeModal);
+backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) closeModal(); });
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape' && backdrop.classList.contains('open')) closeModal();
+});
+
+/* =========================================================
+   10. ACHIEVEMENT + CONFETTI
+   ========================================================= */
+function maybeCelebrate(){
+  if(visited.size < 4 || allDoneCelebrated) return;
+  allDoneCelebrated = true;
+  const el = document.getElementById('achieve');
+  el.innerHTML = '🏆 QUEST COMPLETE<span>All four sections explored — nice work.</span>';
+  el.classList.add('show');
+  playAchieve();
+  spawnConfetti();
+  if(!chestSpawned){
+    chestSpawned = true;
+    MAP[4][6] = 9; // replace part of the rug with a treasure chest
+  }
+  setTimeout(()=> el.classList.remove('show'), 3600);
+}
+function spawnConfetti(){
+  const colors = ['#ffb84d','#5fd6c4','#ff8fa3','#f5ecff'];
+  for(let i=0;i<40;i++){
+    setTimeout(()=>{
+      const d = document.createElement('div');
+      d.className = 'confetti';
+      d.style.left = Math.random()*100 + 'vw';
+      d.style.background = colors[i % colors.length];
+      d.style.animationDuration = (2 + Math.random()*1.5) + 's';
+      d.style.borderRadius = Math.random()>0.5 ? '50%' : '2px';
+      document.body.appendChild(d);
+      setTimeout(()=> d.remove(), 4000);
+    }, i*30);
+  }
+}
+
+/* =========================================================
+   11. INPUT — keyboard, on-screen dpad, click-to-approach
+   ========================================================= */
+const keyMap = {
+  ArrowUp:'up', KeyW:'up', ArrowDown:'down', KeyS:'down',
+  ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right'
+};
+window.addEventListener('keydown', (e)=>{
+  if(keyMap[e.code]){ keys[keyMap[e.code]] = true; e.preventDefault(); }
+  if(e.code === 'KeyE'){ interact(); }
+});
+window.addEventListener('keyup', (e)=>{
+  if(keyMap[e.code]){ keys[keyMap[e.code]] = false; }
+});
+
+function bindHold(id, dir){
+  const btn = document.getElementById(id);
+  const on = (e)=>{ e.preventDefault(); keys[dir]=true; };
+  const off = (e)=>{ e.preventDefault(); keys[dir]=false; };
+  btn.addEventListener('touchstart', on); btn.addEventListener('touchend', off);
+  btn.addEventListener('mousedown', on); btn.addEventListener('mouseup', off);
+  btn.addEventListener('mouseleave', off);
+}
+bindHold('up','up'); bindHold('down','down'); bindHold('left','left'); bindHold('right','right');
+document.getElementById('interact-btn').addEventListener('click', interact);
+
+canvas.addEventListener('click', ()=>{ if(!started){ /* handled by start overlay */ } interact(); });
+
+/* =========================================================
+   12. START OVERLAY
+   ========================================================= */
+document.getElementById('start-btn').addEventListener('click', beginGame);
+function beginGame(){
+  document.getElementById('start-overlay').style.display = 'none';
+  started = true;
+  modalOpen = false;
+  canvas.focus();
+  beep(440,0.08,'square');
+}
+
+/* =========================================================
+   13. SOUND + TEXT MODE TOGGLES
+   ========================================================= */
+const soundBtn = document.getElementById('sound-toggle');
+soundBtn.addEventListener('click', ()=>{
+  soundOn = !soundOn;
+  soundBtn.textContent = soundOn ? '🔊 SOUND' : '🔇 MUTED';
+  soundBtn.setAttribute('aria-pressed', String(soundOn));
+});
+
+const textBtn = document.getElementById('text-toggle');
+const gameView = document.getElementById('game-view');
+const textMode = document.getElementById('text-mode');
+let textBuilt = false;
+textBtn.addEventListener('click', ()=>{
+  const showingText = textMode.classList.toggle('show');
+  gameView.style.display = showingText ? 'none' : '';
+  textBtn.setAttribute('aria-pressed', String(showingText));
+  textBtn.textContent = showingText ? '🕹 GAME MODE' : '📄 TEXT MODE';
+  if(showingText && !textBuilt){ buildTextMode(); textBuilt = true; }
+});
+function buildTextMode(){
+  const sections = [
+    ['about','ABOUT ME'], ['projects','PROJECTS'], ['skills','SKILLS'], ['contact','CONTACT']
+  ];
+  textMode.innerHTML = sections.map(([key,title]) =>
+    `<section><h2>◆ ${title} ◆</h2>${buildContent(key)}</section>`
+  ).join('');
+}
+
+/* initial HUD state */
+document.getElementById('visited-count').textContent = '0 / 4 explored';
+
+})();
+</script>
+</body>
+</html>
+
